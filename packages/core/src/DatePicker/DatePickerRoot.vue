@@ -1,29 +1,29 @@
 <script lang="ts">
-import type { DateValue } from '@internationalized/date'
-
 import type { Ref } from 'vue'
 import type { CalendarRootProps, DateFieldRoot, DateFieldRootProps, PopoverRootEmits, PopoverRootProps } from '..'
 import type { Matcher, WeekDayFormat } from '@/date'
 import type { DateStep, Granularity, HourCycle } from '@/shared/date'
 import type { Direction } from '@/shared/types'
+import type { TemporalDate } from '@/temporal/types'
 import { computed, ref, toRefs, watch } from 'vue'
 import { createContext, useDirection } from '@/shared'
 import { getDefaultDate } from '@/shared/date'
+import { toPlainDate } from '@/temporal/comparators'
 import { PopoverRoot } from '..'
 
 type DatePickerRootContext = {
   id: Ref<string | undefined>
   name: Ref<string | undefined>
-  minValue: Ref<DateValue | undefined>
-  maxValue: Ref<DateValue | undefined>
+  minValue: Ref<TemporalDate | undefined>
+  maxValue: Ref<TemporalDate | undefined>
   hourCycle: Ref<HourCycle | undefined>
   granularity: Ref<Granularity | undefined>
   hideTimeZone: Ref<boolean>
   required: Ref<boolean>
   locale: Ref<string>
   dateFieldRef: Ref<InstanceType<typeof DateFieldRoot> | undefined>
-  modelValue: Ref<DateValue | undefined>
-  placeholder: Ref<DateValue>
+  modelValue: Ref<TemporalDate | undefined>
+  placeholder: Ref<TemporalDate>
   pagedNavigation: Ref<boolean>
   preventDeselect: Ref<boolean>
   weekStartsOn: Ref<0 | 1 | 2 | 3 | 4 | 5 | 6>
@@ -37,8 +37,8 @@ type DatePickerRootContext = {
   defaultOpen: Ref<boolean>
   open: Ref<boolean>
   modal: Ref<boolean>
-  onDateChange: (date: DateValue | undefined) => void
-  onPlaceholderChange: (date: DateValue) => void
+  onDateChange: (date: TemporalDate | undefined) => void
+  onPlaceholderChange: (date: TemporalDate) => void
   dir: Ref<Direction>
   step: Ref<DateStep | undefined>
   closeOnSelect: Ref<boolean>
@@ -51,9 +51,9 @@ export type DatePickerRootProps = Omit<DateFieldRootProps, 'as' | 'asChild'> & P
 
 export type DatePickerRootEmits = {
   /** Event handler called whenever the model value changes */
-  'update:modelValue': [date: DateValue | undefined]
+  'update:modelValue': [date: TemporalDate | undefined]
   /** Event handler called whenever the placeholder value changes */
-  'update:placeholder': [date: DateValue]
+  'update:placeholder': [date: TemporalDate]
 }
 
 export const [injectDatePickerRootContext, provideDatePickerRootContext]
@@ -119,7 +119,7 @@ const dir = useDirection(propDir)
 const modelValue = useVModel(props, 'modelValue', emits, {
   defaultValue: defaultValue.value,
   passive: (props.modelValue === undefined) as false,
-}) as Ref<DateValue | undefined>
+}) as Ref<TemporalDate | undefined>
 
 const defaultDate = computed(() => getDefaultDate({
   defaultPlaceholder: props.placeholder,
@@ -129,9 +129,9 @@ const defaultDate = computed(() => getDefaultDate({
 }))
 
 const placeholder = useVModel(props, 'placeholder', emits, {
-  defaultValue: props.defaultPlaceholder ?? defaultDate.value.copy(),
+  defaultValue: props.defaultPlaceholder ?? defaultDate.value,
   passive: (props.placeholder === undefined) as false,
-}) as Ref<DateValue>
+}) as Ref<TemporalDate>
 
 const open = useVModel(props, 'open', emits, {
   defaultValue: defaultOpen.value,
@@ -141,8 +141,8 @@ const open = useVModel(props, 'open', emits, {
 const dateFieldRef = ref<InstanceType<typeof DateFieldRoot> | undefined>()
 
 watch(modelValue, (value) => {
-  if (value && value.compare(placeholder.value) !== 0) {
-    placeholder.value = value.copy()
+  if (value && !toPlainDate(value).equals(toPlainDate(placeholder.value))) {
+    placeholder.value = value
   }
   if (closeOnSelect.value) {
     open.value = false
@@ -177,19 +177,19 @@ provideDatePickerRootContext({
   dateFieldRef,
   dir,
   step,
-  onDateChange(date: DateValue | undefined) {
+  onDateChange(date: TemporalDate | undefined) {
     if (!date || !modelValue.value) {
-      modelValue.value = date?.copy() ?? undefined
+      modelValue.value = date ?? undefined
     }
-    else if (!preventDeselect.value && date && modelValue.value.compare(date) === 0) {
+    else if (!preventDeselect.value && date && toPlainDate(modelValue.value).equals(toPlainDate(date))) {
       modelValue.value = undefined
     }
     else {
-      modelValue.value = date.copy()
+      modelValue.value = date
     }
   },
-  onPlaceholderChange(date: DateValue) {
-    placeholder.value = date.copy()
+  onPlaceholderChange(date: TemporalDate) {
+    placeholder.value = date
   },
   closeOnSelect,
 })
