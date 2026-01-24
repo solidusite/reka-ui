@@ -2,41 +2,59 @@
   * Adapted from https://github.com/melt-ui/melt-ui/blob/develop/src/lib/builders/calendar/create.ts
 */
 
-import type { DateFields, DateValue } from '@internationalized/date'
 import type { Ref } from 'vue'
 import type { Grid, Matcher, WeekDayFormat } from '@/date'
 import type { DateFormatterOptions } from '@/shared/useDateFormatter'
-import { isEqualMonth, isSameDay } from '@internationalized/date'
+import type { TemporalDate } from '@/temporal/types'
+import { Temporal } from 'temporal-polyfill'
 import { computed, ref, watch } from 'vue'
-import { createMonths, getDaysInMonth, isAfter, isBefore, toDate } from '@/date'
+import { createMonths } from '@/date'
 import { useDateFormatter } from '@/shared'
+import { getDaysInMonth, isAfter, isBefore, isEqualMonth, isSameDay, isZonedDateTime, toPlainDate } from '@/temporal/comparators'
 
 export type UseCalendarProps = {
   locale: Ref<string>
-  placeholder: Ref<DateValue>
+  placeholder: Ref<TemporalDate>
   weekStartsOn: Ref<0 | 1 | 2 | 3 | 4 | 5 | 6>
   fixedWeeks: Ref<boolean>
   numberOfMonths: Ref<number>
-  minValue: Ref<DateValue | undefined>
-  maxValue: Ref<DateValue | undefined>
+  minValue: Ref<TemporalDate | undefined>
+  maxValue: Ref<TemporalDate | undefined>
   disabled: Ref<boolean>
   weekdayFormat: Ref<WeekDayFormat>
   pagedNavigation: Ref<boolean>
   isDateDisabled?: Matcher
   isDateUnavailable?: Matcher
   calendarLabel: Ref<string | undefined>
-  nextPage: Ref<((placeholder: DateValue) => DateValue) | undefined>
-  prevPage: Ref<((placeholder: DateValue) => DateValue) | undefined>
+  nextPage: Ref<((placeholder: TemporalDate) => TemporalDate) | undefined>
+  prevPage: Ref<((placeholder: TemporalDate) => TemporalDate) | undefined>
 }
 
 export type UseCalendarStateProps = {
   isDateDisabled: Matcher
   isDateUnavailable: Matcher
-  date: Ref<DateValue | DateValue[] | undefined>
+  date: Ref<TemporalDate | TemporalDate[] | undefined>
+}
+
+function toDate(dateValue: TemporalDate, timeZone: string = 'UTC') {
+  if (isZonedDateTime(dateValue)) {
+    return new Date(dateValue.toInstant().epochMilliseconds)
+  }
+
+  if (dateValue instanceof Temporal.PlainDateTime) {
+    const zoned = dateValue.toZonedDateTime(timeZone)
+    return new Date(zoned.toInstant().epochMilliseconds)
+  }
+
+  const zoned = dateValue.toZonedDateTime({
+    timeZone,
+    plainTime: Temporal.PlainTime.from({ hour: 0, minute: 0, second: 0 }),
+  })
+  return new Date(zoned.toInstant().epochMilliseconds)
 }
 
 export function useCalendarState(props: UseCalendarStateProps) {
-  function isDateSelected(dateObj: DateValue) {
+  function isDateSelected(dateObj: TemporalDate) {
     if (Array.isArray(props.date.value))
       return props.date.value.some(d => isSameDay(d, dateObj))
 
@@ -77,31 +95,35 @@ export function useCalendarState(props: UseCalendarStateProps) {
   }
 }
 
-function handleNextDisabled(lastPeriodInView: DateValue, nextPageFunc: (date: DateValue) => DateValue): DateValue {
+function handleNextDisabled(lastPeriodInView: TemporalDate, nextPageFunc: (date: TemporalDate) => TemporalDate): TemporalDate {
   const firstPeriodOfNextPage = nextPageFunc(lastPeriodInView)
-  const diff = firstPeriodOfNextPage.compare(lastPeriodInView)
-  const duration: DateFields = {}
+  const diff = Temporal.PlainDate.compare(toPlainDate(firstPeriodOfNextPage), toPlainDate(lastPeriodInView))
+  const duration: { day?: number, month?: number } = {}
   if (diff >= 7)
     duration.day = 1
   if (diff >= getDaysInMonth(lastPeriodInView))
     duration.month = 1
-  return firstPeriodOfNextPage.set({ ...duration })
+  return Object.keys(duration).length
+    ? firstPeriodOfNextPage.with({ ...duration })
+    : firstPeriodOfNextPage
 }
-function handlePrevDisabled(firstPeriodInView: DateValue, prevPageFunc: (date: DateValue) => DateValue): DateValue {
+function handlePrevDisabled(firstPeriodInView: TemporalDate, prevPageFunc: (date: TemporalDate) => TemporalDate): TemporalDate {
   const lastPeriodOfPrevPage = prevPageFunc(firstPeriodInView)
-  const diff = firstPeriodInView.compare(lastPeriodOfPrevPage)
-  const duration: DateFields = {}
+  const diff = Temporal.PlainDate.compare(toPlainDate(firstPeriodInView), toPlainDate(lastPeriodOfPrevPage))
+  const duration: { day?: number, month?: number } = {}
   if (diff >= 7)
     duration.day = 35
   if (diff >= getDaysInMonth(firstPeriodInView))
     duration.month = 13
-  return lastPeriodOfPrevPage.set({ ...duration })
+  return Object.keys(duration).length
+    ? lastPeriodOfPrevPage.with({ ...duration })
+    : lastPeriodOfPrevPage
 }
-function handleNextPage(date: DateValue, nextPageFunc: (date: DateValue) => DateValue): DateValue {
+function handleNextPage(date: TemporalDate, nextPageFunc: (date: TemporalDate) => TemporalDate): TemporalDate {
   return nextPageFunc(date)
 }
 
-function handlePrevPage(date: DateValue, prevPageFunc: (date: DateValue) => DateValue): DateValue {
+function handlePrevPage(date: TemporalDate, prevPageFunc: (date: TemporalDate) => TemporalDate): TemporalDate {
   return prevPageFunc(date)
 }
 
@@ -110,32 +132,32 @@ export function useCalendar(props: UseCalendarProps) {
 
   const headingFormatOptions = computed(() => {
     const options: DateFormatterOptions = {
-      calendar: props.placeholder.value.calendar.identifier,
+      calendar: props.placeholder.value.calendarId,
     }
 
-    if (props.placeholder.value.calendar.identifier === 'gregory' && props.placeholder.value.era === 'BC')
+    if (props.placeholder.value.calendarId === 'gregory' && props.placeholder.value.era === 'BC')
       options.era = 'short'
 
     return options
   })
 
-  const grid = ref<Grid<DateValue>[]>(createMonths({
+  const grid = ref<Grid<TemporalDate>[]>(createMonths({
     dateObj: props.placeholder.value,
     weekStartsOn: props.weekStartsOn.value,
     locale: props.locale.value,
     fixedWeeks: props.fixedWeeks.value,
     numberOfMonths: props.numberOfMonths.value,
-  })) as Ref<Grid<DateValue>[]>
+  })) as Ref<Grid<TemporalDate>[]>
 
   const visibleView = computed(() => {
     return grid.value.map(month => month.value)
   })
 
-  function isOutsideVisibleView(date: DateValue) {
+  function isOutsideVisibleView(date: TemporalDate) {
     return !visibleView.value.some(month => isEqualMonth(date, month))
   }
 
-  const isNextButtonDisabled = (nextPageFunc?: (date: DateValue) => DateValue) => {
+  const isNextButtonDisabled = (nextPageFunc?: (date: TemporalDate) => TemporalDate) => {
     if (!props.maxValue.value || !grid.value.length)
       return false
     if (props.disabled.value)
@@ -144,7 +166,7 @@ export function useCalendar(props: UseCalendarProps) {
     const lastPeriodInView = grid.value[grid.value.length - 1].value
 
     if (!nextPageFunc && !props.nextPage.value) {
-      const firstPeriodOfNextPage = lastPeriodInView.add({ months: 1 }).set({ day: 1 })
+      const firstPeriodOfNextPage = lastPeriodInView.add({ months: 1 }).with({ day: 1 })
       return isAfter(firstPeriodOfNextPage, props.maxValue.value)
     }
 
@@ -152,7 +174,7 @@ export function useCalendar(props: UseCalendarProps) {
     return isAfter(firstPeriodOfNextPage, props.maxValue.value)
   }
 
-  const isPrevButtonDisabled = (prevPageFunc?: (date: DateValue) => DateValue) => {
+  const isPrevButtonDisabled = (prevPageFunc?: (date: TemporalDate) => TemporalDate) => {
     if (!props.minValue.value || !grid.value.length)
       return false
     if (props.disabled.value)
@@ -160,7 +182,7 @@ export function useCalendar(props: UseCalendarProps) {
     const firstPeriodInView = grid.value[0].value
 
     if (!prevPageFunc && !props.prevPage.value) {
-      const lastPeriodOfPrevPage = firstPeriodInView.subtract({ months: 1 }).set({ day: 35 })
+      const lastPeriodOfPrevPage = firstPeriodInView.subtract({ months: 1 }).with({ day: 35 })
       return isBefore(lastPeriodOfPrevPage, props.minValue.value)
     }
 
@@ -168,7 +190,7 @@ export function useCalendar(props: UseCalendarProps) {
     return isBefore(lastPeriodOfPrevPage, props.minValue.value)
   }
 
-  function isDateDisabled(dateObj: DateValue) {
+  function isDateDisabled(dateObj: TemporalDate) {
     if (props.isDateDisabled?.(dateObj) || props.disabled.value)
       return true
     if (props.maxValue.value && isAfter(dateObj, props.maxValue.value))
@@ -178,7 +200,7 @@ export function useCalendar(props: UseCalendarProps) {
     return false
   }
 
-  const isDateUnavailable = (date: DateValue) => {
+  const isDateUnavailable = (date: TemporalDate) => {
     if (props.isDateUnavailable?.(date))
       return true
     return false
@@ -192,7 +214,7 @@ export function useCalendar(props: UseCalendarProps) {
     })
   })
 
-  const nextPage = (nextPageFunc?: (date: DateValue) => DateValue) => {
+  const nextPage = (nextPageFunc?: (date: TemporalDate) => TemporalDate) => {
     const firstDate = grid.value[0].value
 
     if (!nextPageFunc && !props.nextPage.value) {
@@ -208,7 +230,7 @@ export function useCalendar(props: UseCalendarProps) {
 
       grid.value = newGrid
 
-      props.placeholder.value = newGrid[0].value.set({ day: 1 })
+      props.placeholder.value = newGrid[0].value.with({ day: 1 })
       return
     }
 
@@ -223,11 +245,11 @@ export function useCalendar(props: UseCalendarProps) {
 
     grid.value = newGrid
 
-    const duration: DateFields = {}
+    const duration: { day?: number, month?: number } = {}
 
     // Do not adjust the placeholder if the nextPageFunc is defined (overwrite)
     if (!nextPageFunc) {
-      const diff = newGrid[0].value.compare(firstDate)
+      const diff = Temporal.PlainDate.compare(toPlainDate(newGrid[0].value), toPlainDate(firstDate))
       if (diff >= getDaysInMonth(firstDate))
         duration.day = 1
 
@@ -235,10 +257,12 @@ export function useCalendar(props: UseCalendarProps) {
         duration.month = 1
     }
 
-    props.placeholder.value = newGrid[0].value.set({ ...duration })
+    props.placeholder.value = Object.keys(duration).length
+      ? newGrid[0].value.with({ ...duration })
+      : newGrid[0].value
   }
 
-  const prevPage = (prevPageFunc?: (date: DateValue) => DateValue) => {
+  const prevPage = (prevPageFunc?: (date: TemporalDate) => TemporalDate) => {
     const firstDate = grid.value[0].value
 
     if (!prevPageFunc && !props.prevPage.value) {
@@ -254,7 +278,7 @@ export function useCalendar(props: UseCalendarProps) {
 
       grid.value = newGrid
 
-      props.placeholder.value = newGrid[0].value.set({ day: 1 })
+      props.placeholder.value = newGrid[0].value.with({ day: 1 })
       return
     }
 
@@ -269,11 +293,11 @@ export function useCalendar(props: UseCalendarProps) {
 
     grid.value = newGrid
 
-    const duration: DateFields = {}
+    const duration: { day?: number, month?: number } = {}
 
     // Do not adjust the placeholder if the prevPageFunc is defined (overwrite)
     if (!prevPageFunc) {
-      const diff = firstDate.compare(newGrid[0].value)
+      const diff = Temporal.PlainDate.compare(toPlainDate(firstDate), toPlainDate(newGrid[0].value))
       if (diff >= getDaysInMonth(firstDate))
         duration.day = 1
 
@@ -281,7 +305,9 @@ export function useCalendar(props: UseCalendarProps) {
         duration.month = 1
     }
 
-    props.placeholder.value = newGrid[0].value.set({ ...duration })
+    props.placeholder.value = Object.keys(duration).length
+      ? newGrid[0].value.with({ ...duration })
+      : newGrid[0].value
   }
 
   watch(props.placeholder, (value) => {

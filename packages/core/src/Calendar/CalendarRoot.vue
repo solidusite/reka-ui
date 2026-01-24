@@ -1,24 +1,23 @@
 <script lang="ts">
-import type { DateValue } from '@internationalized/date'
-
 import type { Ref } from 'vue'
 import type { Grid, Matcher, WeekDayFormat } from '@/date'
 import type { PrimitiveProps } from '@/Primitive'
 
 import type { Formatter } from '@/shared'
 import type { Direction } from '@/shared/types'
-import { isEqualDay, isSameDay } from '@internationalized/date'
+import type { TemporalDate } from '@/temporal/types'
 import { createContext, useDirection, useLocale } from '@/shared'
 import { getDefaultDate, handleCalendarInitialFocus } from '@/shared/date'
+import { isSameDay } from '@/temporal/comparators'
 import { useCalendar, useCalendarState } from './useCalendar'
 
 type CalendarRootContext = {
   locale: Ref<string>
-  modelValue: Ref<DateValue | DateValue[] | undefined>
-  placeholder: Ref<DateValue>
+  modelValue: Ref<TemporalDate | TemporalDate[] | undefined>
+  placeholder: Ref<TemporalDate>
   pagedNavigation: Ref<boolean>
   preventDeselect: Ref<boolean>
-  grid: Ref<Grid<DateValue>[]>
+  grid: Ref<Grid<TemporalDate>[]>
   weekDays: Ref<string[]>
   weekStartsOn: Ref<0 | 1 | 2 | 3 | 4 | 5 | 6>
   weekdayFormat: Ref<WeekDayFormat>
@@ -28,8 +27,8 @@ type CalendarRootContext = {
   disabled: Ref<boolean>
   readonly: Ref<boolean>
   initialFocus: Ref<boolean>
-  onDateChange: (date: DateValue) => void
-  onPlaceholderChange: (date: DateValue) => void
+  onDateChange: (date: TemporalDate) => void
+  onPlaceholderChange: (date: TemporalDate) => void
   fullCalendarLabel: Ref<string>
   parentElement: Ref<HTMLElement | undefined>
   headingValue: Ref<string>
@@ -37,25 +36,25 @@ type CalendarRootContext = {
   isDateDisabled: Matcher
   isDateSelected: Matcher
   isDateUnavailable?: Matcher
-  isOutsideVisibleView: (date: DateValue) => boolean
-  prevPage: (prevPageFunc?: (date: DateValue) => DateValue) => void
-  nextPage: (nextPageFunc?: (date: DateValue) => DateValue) => void
-  isNextButtonDisabled: (nextPageFunc?: (date: DateValue) => DateValue) => boolean
-  isPrevButtonDisabled: (prevPageFunc?: (date: DateValue) => DateValue) => boolean
+  isOutsideVisibleView: (date: TemporalDate) => boolean
+  prevPage: (prevPageFunc?: (date: TemporalDate) => TemporalDate) => void
+  nextPage: (nextPageFunc?: (date: TemporalDate) => TemporalDate) => void
+  isNextButtonDisabled: (nextPageFunc?: (date: TemporalDate) => TemporalDate) => boolean
+  isPrevButtonDisabled: (prevPageFunc?: (date: TemporalDate) => TemporalDate) => boolean
   formatter: Formatter
   dir: Ref<Direction>
   disableDaysOutsideCurrentView: Ref<boolean>
-  minValue: Ref<DateValue | undefined>
-  maxValue: Ref<DateValue | undefined>
+  minValue: Ref<TemporalDate | undefined>
+  maxValue: Ref<TemporalDate | undefined>
 }
 
 export interface CalendarRootProps extends PrimitiveProps {
   /** The default value for the calendar */
-  defaultValue?: DateValue
+  defaultValue?: TemporalDate
   /** The default placeholder date */
-  defaultPlaceholder?: DateValue
+  defaultPlaceholder?: TemporalDate
   /** The placeholder date, which is used to determine what month to display when no date is selected */
-  placeholder?: DateValue
+  placeholder?: TemporalDate
   /** This property causes the previous and next buttons to navigate by the number of months displayed at once, rather than one month */
   pagedNavigation?: boolean
   /** Whether or not to prevent the user from deselecting a date without selecting another date first */
@@ -69,9 +68,9 @@ export interface CalendarRootProps extends PrimitiveProps {
   /** Whether or not to always display 6 weeks in the calendar */
   fixedWeeks?: boolean
   /** The maximum date that can be selected */
-  maxValue?: DateValue
+  maxValue?: TemporalDate
   /** The minimum date that can be selected */
-  minValue?: DateValue
+  minValue?: TemporalDate
   /** The locale to use for formatting dates */
   locale?: string
   /** The number of months to display at once */
@@ -89,11 +88,11 @@ export interface CalendarRootProps extends PrimitiveProps {
   /** The reading direction of the calendar when applicable. <br> If omitted, inherits globally from `ConfigProvider` or assumes LTR (left-to-right) reading mode. */
   dir?: Direction
   /** A function that returns the next page of the calendar. It receives the current placeholder as an argument inside the component. */
-  nextPage?: (placeholder: DateValue) => DateValue
+  nextPage?: (placeholder: TemporalDate) => TemporalDate
   /** A function that returns the previous page of the calendar. It receives the current placeholder as an argument inside the component. */
-  prevPage?: (placeholder: DateValue) => DateValue
+  prevPage?: (placeholder: TemporalDate) => TemporalDate
   /** The controlled checked state of the calendar */
-  modelValue?: DateValue | DateValue[] | undefined
+  modelValue?: TemporalDate | TemporalDate[] | undefined
   /** Whether multiple dates can be selected */
   multiple?: boolean
   /** Whether or not to disable days outside the current view. */
@@ -102,9 +101,9 @@ export interface CalendarRootProps extends PrimitiveProps {
 
 export type CalendarRootEmits = {
   /** Event handler called whenever the model value changes */
-  'update:modelValue': [date: DateValue | undefined]
+  'update:modelValue': [date: TemporalDate | undefined]
   /** Event handler called whenever the placeholder value changes */
-  'update:placeholder': [date: DateValue]
+  'update:placeholder': [date: TemporalDate]
 }
 
 export const [injectCalendarRootContext, provideCalendarRootContext]
@@ -138,9 +137,9 @@ const emits = defineEmits<CalendarRootEmits>()
 defineSlots<{
   default?: (props: {
     /** The current date of the placeholder */
-    date: DateValue
+    date: TemporalDate
     /** The grid of dates */
-    grid: Grid<DateValue>[]
+    grid: Grid<TemporalDate>[]
     /** The days of the week */
     weekDays: string[]
     /** The start of the week */
@@ -150,7 +149,7 @@ defineSlots<{
     /** Whether or not to always display 6 weeks in the calendar */
     fixedWeeks: boolean
     /** The current date of the calendar */
-    modelValue: DateValue | DateValue[] | undefined
+    modelValue: TemporalDate | TemporalDate[] | undefined
   }) => any
 }>()
 
@@ -186,7 +185,7 @@ const dir = useDirection(propDir)
 const modelValue = useVModel(props, 'modelValue', emits, {
   defaultValue: defaultValue.value,
   passive: (props.modelValue === undefined) as false,
-}) as Ref<DateValue | DateValue[] | undefined>
+}) as Ref<TemporalDate | TemporalDate[] | undefined>
 
 const defaultDate = getDefaultDate({
   defaultPlaceholder: props.placeholder,
@@ -195,12 +194,12 @@ const defaultDate = getDefaultDate({
 })
 
 const placeholder = useVModel(props, 'placeholder', emits, {
-  defaultValue: props.defaultPlaceholder ?? defaultDate.copy(),
+  defaultValue: props.defaultPlaceholder ?? defaultDate,
   passive: (props.placeholder === undefined) as false,
-}) as Ref<DateValue>
+}) as Ref<TemporalDate>
 
-function onPlaceholderChange(value: DateValue) {
-  placeholder.value = value.copy()
+function onPlaceholderChange(value: TemporalDate) {
+  placeholder.value = value
 }
 
 const {
@@ -246,29 +245,29 @@ const {
 watch(modelValue, (_modelValue) => {
   if (Array.isArray(_modelValue) && _modelValue.length) {
     const lastValue = _modelValue[_modelValue.length - 1]
-    if (lastValue && !isEqualDay(placeholder.value, lastValue))
+    if (lastValue && !isSameDay(placeholder.value, lastValue))
       onPlaceholderChange(lastValue)
   }
-  else if (!Array.isArray(_modelValue) && _modelValue && !isEqualDay(placeholder.value, _modelValue)) {
+  else if (!Array.isArray(_modelValue) && _modelValue && !isSameDay(placeholder.value, _modelValue)) {
     onPlaceholderChange(_modelValue)
   }
 })
 
-function onDateChange(value: DateValue) {
+function onDateChange(value: TemporalDate) {
   if (!multiple.value) {
     if (!modelValue.value) {
-      modelValue.value = value.copy()
+      modelValue.value = value
       return
     }
 
-    if (!preventDeselect.value && isEqualDay(modelValue.value as DateValue, value)) {
-      placeholder.value = value.copy()
+    if (!preventDeselect.value && isSameDay(modelValue.value as TemporalDate, value)) {
+      placeholder.value = value
       modelValue.value = undefined
     }
-    else { modelValue.value = value.copy() }
+    else { modelValue.value = value }
   }
   else if (!modelValue.value) {
-    modelValue.value = [value.copy()]
+    modelValue.value = [value]
   }
   else if (Array.isArray(modelValue.value)) {
     const index = modelValue.value.findIndex(date => isSameDay(date, value))
@@ -278,11 +277,11 @@ function onDateChange(value: DateValue) {
     else if (!preventDeselect.value) {
       const next = modelValue.value.filter(date => !isSameDay(date, value))
       if (!next.length) {
-        placeholder.value = value.copy()
+        placeholder.value = value
         modelValue.value = undefined
         return
       }
-      modelValue.value = next.map(date => date.copy())
+      modelValue.value = next
     }
   }
 }
