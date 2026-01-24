@@ -2,9 +2,9 @@
   * Implementation ported from https://github.com/melt-ui/melt-ui/blob/develop/src/lib/internal/helpers/date/types.ts
 */
 
-import type { DateValue } from '@internationalized/date'
+import type { TemporalDate } from '@/temporal/types'
 
-export type { DateValue }
+export type { TemporalDate }
 import type { DATE_SEGMENT_PARTS, EDITABLE_SEGMENT_PARTS, NON_EDITABLE_SEGMENT_PARTS, TIME_SEGMENT_PARTS } from './parts'
 
 // Days of the week, starting with Sunday
@@ -24,8 +24,8 @@ export type DateStep = {
 }
 
 export type DateRange = {
-  start: DateValue | undefined
-  end: DateValue | undefined
+  start: TemporalDate | undefined
+  end: TemporalDate | undefined
 }
 
 export type HourCycle = 12 | 24 | undefined
