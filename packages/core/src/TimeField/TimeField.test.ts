@@ -1,20 +1,20 @@
-import type { DateFields, TimeFields } from '@internationalized/date'
-
 import type { TimeFieldRootProps } from './TimeFieldRoot.vue'
 import type { TimeValue } from '@/shared/date'
-import { CalendarDateTime, now, parseAbsoluteToLocal, Time, toZoned } from '@internationalized/date'
 import userEvent from '@testing-library/user-event'
 import { render } from '@testing-library/vue'
 import { describe, expect, it } from 'vitest'
 import { axe } from 'vitest-axe'
 import { useTestKbd } from '@/shared'
+import { Temporal } from '@/temporal'
 import TimeField from './story/_TimeField.vue'
 
-const time = new Time(9, 15, 29)
-const calendarDateTime = new CalendarDateTime(1980, 1, 20, 12, 30, 0, 0)
-const zonedDateTime = toZoned(calendarDateTime, 'America/New_York')
+const time = Temporal.PlainTime.from({ hour: 9, minute: 15, second: 29 })
+const calendarDateTime = Temporal.PlainDateTime.from({ year: 1980, month: 1, day: 20, hour: 12, minute: 30, second: 0, millisecond: 0 })
+const zonedDateTime = calendarDateTime.toZonedDateTime('America/New_York')
 
 const kbd = useTestKbd()
+
+type TimeFields = 'hour' | 'minute' | 'second'
 
 function getTimeSegments(getByTestId: (...args: any[]) => HTMLElement) {
   return {
@@ -143,8 +143,14 @@ describe('timeField', async () => {
       },
     })
 
-    function cycle(segment: keyof TimeFields) {
-      return String(zonedDateTime.cycle(segment, 1)[segment])
+    function cycle(segment: TimeFields) {
+      const unitMap = {
+        hour: 'hours',
+        minute: 'minutes',
+        second: 'seconds',
+      }
+      const unit = unitMap[segment]
+      return String(zonedDateTime.add({ [unit]: 1 })[segment])
     }
 
     const minute = getByTestId('minute')
@@ -169,8 +175,14 @@ describe('timeField', async () => {
       },
     })
 
-    function cycle(segment: keyof TimeFields) {
-      return String(zonedDateTime.cycle(segment, -1)[segment])
+    function cycle(segment: TimeFields) {
+      const unitMap = {
+        hour: 'hours',
+        minute: 'minutes',
+        second: 'seconds',
+      } as const
+      const unit = unitMap[segment]
+      return String(zonedDateTime.subtract({ [unit]: 1 })[segment])
     }
 
     const minute = getByTestId('minute')
@@ -197,8 +209,18 @@ describe('timeField', async () => {
       },
     })
 
-    function cycle(segment: keyof TimeFields, sign: number) {
-      return String(zonedDateTime.cycle(segment, sign)[segment])
+    function cycle(segment: TimeFields, sign: number) {
+      const unitMap = {
+        hour: 'hours',
+        minute: 'minutes',
+        second: 'seconds',
+      } as const
+      const unit = unitMap[segment]
+      if (sign === 0)
+        return String(zonedDateTime[segment])
+      if (sign > 0)
+        return String(zonedDateTime.add({ [unit]: sign })[segment])
+      return String(zonedDateTime.subtract({ [unit]: Math.abs(sign) })[segment])
     }
 
     const minute = getByTestId('minute')
@@ -315,7 +337,7 @@ describe('timeField', async () => {
       expect(segment).toHaveFocus()
       await user.keyboard(kbd.ARROW_UP)
       expect(segment).toHaveTextContent(
-        String(zonedDateTime[segment.getAttribute('data-reka-time-field-segment') as keyof TimeFields | keyof DateFields]),
+        String(zonedDateTime[segment.getAttribute('data-reka-time-field-segment') as TimeFields]),
       )
     }
   })
@@ -445,7 +467,7 @@ describe('timeField', async () => {
 
   it('displays correct timezone with ZonedDateTime value - `now`', async () => {
     const { getByTestId } = setup({
-      timeFieldProps: { modelValue: now('America/Los_Angeles') },
+      timeFieldProps: { modelValue: Temporal.Now.zonedDateTimeISO('America/Los_Angeles') },
     })
 
     const timeZone = getByTestId('timeZoneName')
@@ -457,7 +479,7 @@ describe('timeField', async () => {
 
   it('displays correct timezone with ZonedDateTime value - absolute -> local', async () => {
     const { getByTestId } = setup({
-      timeFieldProps: { modelValue: parseAbsoluteToLocal('2023-10-12T12:30:00Z') },
+      timeFieldProps: { modelValue: Temporal.Instant.from('2023-10-12T12:30:00Z').toZonedDateTimeISO(Temporal.Now.timeZoneId()) },
     })
 
     const timeZone = getByTestId('timeZoneName')
