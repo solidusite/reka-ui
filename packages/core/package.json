@@ -70,6 +70,7 @@
     "build-only": "tsdown && tsx scripts/postbuild.ts",
     "watch": "tsdown --watch",
     "type-check": "vue-tsc -p tsconfig.check.json --noEmit",
+    "test:run": "vitest run",
     "test": "vitest",
     "test-update": "vitest -u",
     "pub:release": "pnpm publish --no-git-checks --access public"
