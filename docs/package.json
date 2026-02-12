@@ -18,7 +18,7 @@
     "@vueuse/core": "^14.1.0",
     "motion-v": "1.3.1",
     "reka-ui": "link:../packages/core",
-    "vue": "3.5.17",
+    "vue": "3.5.28",
     "vue-sonner": "^1.3.2"
   },
   "devDependencies": {
@@ -29,7 +29,7 @@
     "@types/babel__traverse": "^7.20.6",
     "@types/hast": "^3.0.4",
     "@types/markdown-it": "^14.1.2",
-    "@vue/tsconfig": "^0.7.0",
+    "@vue/tsconfig": "^0.8.1",
     "autoprefixer": "^10.4.20",
     "codesandbox": "^2.2.3",
     "fast-glob": "^3.3.3",
