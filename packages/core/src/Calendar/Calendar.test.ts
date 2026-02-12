@@ -742,6 +742,34 @@ describe('calendar', async () => {
       expect(getByTestId('date-1-13')).toHaveFocus()
     })
 
+    it('home moves focus to week start with weekStartsOn: 1', async () => {
+      const { getByTestId, user } = setup({
+        calendarProps: {
+          placeholder: new CalendarDate(2024, 1, 10),
+          weekStartsOn: 1,
+        },
+      })
+
+      const midWeekDay = getByTestId('date-1-10')
+      midWeekDay.focus()
+      await user.keyboard(kbd.HOME)
+      expect(getByTestId('date-1-8')).toHaveFocus()
+    })
+
+    it('end moves focus to week end with weekStartsOn: 1', async () => {
+      const { getByTestId, user } = setup({
+        calendarProps: {
+          placeholder: new CalendarDate(2024, 1, 10),
+          weekStartsOn: 1,
+        },
+      })
+
+      const midWeekDay = getByTestId('date-1-10')
+      midWeekDay.focus()
+      await user.keyboard(kbd.END)
+      expect(getByTestId('date-1-14')).toHaveFocus()
+    })
+
     it('page up navigates to previous month keeping day', async () => {
       const { getByTestId, user } = setup({
         calendarProps: {

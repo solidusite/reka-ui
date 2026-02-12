@@ -1,9 +1,24 @@
 import type { DateValue, DayOfWeek } from '@internationalized/date'
+import type { WeekStartsOn } from '@/date'
 import { getDayOfWeek } from '@internationalized/date'
 import { nextTick } from 'vue'
 import { getDaysInMonth } from '@/date'
 
 export const MAX_FOCUS_RETRIES = 24
+
+const weekStartsOnToDayOfWeek: Record<WeekStartsOn, DayOfWeek> = {
+  0: 'sun',
+  1: 'mon',
+  2: 'tue',
+  3: 'wed',
+  4: 'thu',
+  5: 'fri',
+  6: 'sat',
+}
+
+function toDayOfWeek(weekStartsOn: WeekStartsOn): DayOfWeek {
+  return weekStartsOnToDayOfWeek[weekStartsOn]
+}
 
 interface FocusDateOptions {
   parentElement: HTMLElement
@@ -18,7 +33,7 @@ interface FocusWeekBoundaryOptions extends Omit<FocusDateOptions, 'target' | 'di
   baseDate: DateValue
   boundary: 'start' | 'end'
   locale: string
-  weekStartsOn: DayOfWeek
+  weekStartsOn: WeekStartsOn
 }
 
 interface FocusPaginationOptions extends Omit<FocusDateOptions, 'target' | 'directionSign'> {
@@ -66,10 +81,10 @@ export function focusPagination(options: FocusPaginationOptions) {
 export function getWeekBoundaryDay(
   date: DateValue,
   locale: string,
-  weekStartsOn: DayOfWeek,
+  weekStartsOn: WeekStartsOn,
   boundary: 'start' | 'end',
 ): DateValue {
-  const dayOfWeek = getDayOfWeek(date, locale, weekStartsOn)
+  const dayOfWeek = getDayOfWeek(date, locale, toDayOfWeek(weekStartsOn))
   const offset = boundary === 'start' ? -dayOfWeek : 6 - dayOfWeek
   return date.add({ days: offset })
 }

@@ -622,6 +622,44 @@ describe('rangeCalendar', () => {
       expect(spy.value).toBeUndefined()
     })
 
+    it('home focuses week start with weekStartsOn: 1 without mutating the range', async () => {
+      const spy = getRangeUpdateSpy()
+      const { getByTestId, user } = setup({
+        calendarProps: {
+          modelValue: calendarDateRange,
+          placeholder: new CalendarDate(2024, 1, 10),
+          weekStartsOn: 1,
+        },
+        emits: { 'onUpdate:modelValue': spy.emit },
+      })
+
+      const midWeekDay = getByTestId('date-1-10')
+      midWeekDay.focus()
+      await user.keyboard(kbd.HOME)
+
+      expect(getByTestId('date-1-8')).toHaveFocus()
+      expect(spy.value).toBeUndefined()
+    })
+
+    it('end focuses week end with weekStartsOn: 1 without mutating the range', async () => {
+      const spy = getRangeUpdateSpy()
+      const { getByTestId, user } = setup({
+        calendarProps: {
+          modelValue: calendarDateRange,
+          placeholder: new CalendarDate(2024, 1, 10),
+          weekStartsOn: 1,
+        },
+        emits: { 'onUpdate:modelValue': spy.emit },
+      })
+
+      const midWeekDay = getByTestId('date-1-10')
+      midWeekDay.focus()
+      await user.keyboard(kbd.END)
+
+      expect(getByTestId('date-1-14')).toHaveFocus()
+      expect(spy.value).toBeUndefined()
+    })
+
     it('page up navigates to previous month while preserving the range', async () => {
       const spy = getRangeUpdateSpy()
       const { getByTestId, user } = setup({
